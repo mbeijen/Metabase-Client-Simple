@@ -173,9 +173,16 @@ sub register {
         ),
     );
 
-    my $res = $self->_ua->request($req);
+    my $res = $self->_ua->post($req_uri, {
+      headers => { Accept => 'application/json',
+                   'Content-Type' =>  'application/json'
+                 },
+      content => JSON->new->ascii->encode(
+            [ $self->profile->as_struct, $self->secret->as_struct ]
+        ),
+    });
 
-    unless ( $res->is_success ) {
+    unless ( $res->{success} ) {
         Carp::confess $self->_error( $res => "registration failed" );
     }
 
@@ -221,12 +228,12 @@ sub _abs_uri {
 sub _error {
     my ( $self, $res, $prefix ) = @_;
     $prefix ||= "unrecognized error";
-    if ( ref($res) && $res->header('Content-Type') eq 'application/json' ) {
-        my $entity = JSON->new->ascii->decode( $res->content );
+    if ( ref($res) && $res->{headers}->{'content-type'} eq 'application/json' ) {
+        my $entity = JSON->new->ascii->decode( $res->{content} );
         return "$prefix\: $entity->{error}";
     }
     else {
-        return "$prefix\: " . $res->message;
+        return "$prefix\: " . $res->{content};
     }
 }
 
