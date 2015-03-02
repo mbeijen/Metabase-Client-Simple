@@ -11,6 +11,7 @@ use HTTP::Status 5.817 qw/:constants/;
 use HTTP::Request::Common ();
 use JSON 2 ();
 use LWP::UserAgent 5.54 (); # keep_alive
+use HTTP::Tiny;
 use URI;
 
 my @valid_args;
@@ -58,25 +59,15 @@ sub new {
         Carp::confess("'profile' argument for $class must be a Metabase::User::secret");
     }
 
-    my $scheme = URI->new( $self->uri )->scheme;
-    unless ( $self->_ua->is_protocol_supported($scheme) ) {
-        my $msg = "Scheme '$scheme' is not supported by your LWP::UserAgent.\n";
-        if ( $scheme eq 'https' ) {
-            $msg .= "You must install Crypt::SSLeay or IO::Socket::SSL or use http instead.\n";
-        }
-        die $msg;
-    }
-
     return $self;
 }
 
 sub _ua {
     my ($self) = @_;
     if ( !$self->{_ua} ) {
-        $self->{_ua} = LWP::UserAgent->new(
+        $self->{_ua} = HTTP::Tiny->new(
             agent      => __PACKAGE__ . "/" . __PACKAGE__->VERSION . " ",
-            env_proxy  => 1,
-            keep_alive => 5,
+            keep_alive => 1,
         );
     }
     return $self->{_ua};
@@ -147,11 +138,9 @@ sub guid_exists {
 
     my $req_uri = $self->_abs_uri($path);
 
-    my $req = HTTP::Request::Common::HEAD($req_uri);
+    my $res = $self->_ua->head($req_uri);
 
-    my $res = $self->_ua->request($req);
-
-    return $res->is_success ? 1 : 0;
+    return $res->{success} ? 1 : 0;
 }
 
 =method register
