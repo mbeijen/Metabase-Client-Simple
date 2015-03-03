@@ -5,12 +5,10 @@ use warnings;
 package Metabase::Client::Simple;
 # ABSTRACT: a client that submits to Metabase servers
 
-our $VERSION = '0.011';
+our $VERSION = '0.011_03';
 
 use HTTP::Status 5.817 qw/:constants/;
-use HTTP::Request::Common ();
 use JSON 2 ();
-use LWP::UserAgent 5.54 (); # keep_alive
 use HTTP::Tiny;
 use URI;
 
@@ -93,26 +91,32 @@ sub submit_fact {
 
     my $req_uri = $self->_abs_uri($path);
 
-    my $req = HTTP::Request::Common::POST(
-        $req_uri,
-        Content_Type => 'application/json',
-        Accept       => 'application/json',
-        Content      => JSON->new->ascii->encode( $fact->as_struct ),
-    );
-    $req->authorization_basic( $self->profile->resource->guid, $self->secret->content );
+    my $basic = $self->profile->resource->guid . ':' . $self->secret->content . '@';
 
-    my $res = $self->_ua->request($req);
+    warn "OLD URI: $req_uri";
+    $req_uri = 'https://' . $basic .  'metabase.cpantesters.org/api/v1/submit/CPAN-Testers-Report';
+    warn "URI $req_uri";
+    my $res = $self->_ua->post($req_uri, {
+      headers => { Accept => 'application/json',
+                   'Content-Type' => 'application/json', },
+      content => JSON->new->ascii->encode( $fact->as_struct),
+    });
 
-    if ( $res->code == HTTP_UNAUTHORIZED ) {
+    if ( $res->{status} == HTTP_UNAUTHORIZED ) {
         if ( $self->guid_exists( $self->profile->guid ) ) {
-            Carp::confess $self->_error( $res => "authentication failed" );
+    #        Carp::confess $self->_error( $res => "authentication failed" );
+warn "Authentication failed!!";
         }
         $self->register; # dies on failure
         # should now be registered so try again
-        $res = $self->_ua->request($req);
+    $res = $self->_ua->post($req_uri, {
+      headers => { Accept => 'application/json',
+                   'Content-Type' => 'application/json', },
+      content => JSON->new->ascii->encode( $fact->as_struct),
+    });
     }
 
-    unless ( $res->is_success ) {
+    unless ( $res->{success} ) {
         Carp::confess $self->_error( $res => "fact submission failed" );
     }
 
@@ -163,15 +167,6 @@ sub register {
         $self->$type->set_creator( $self->$type->resource )
           unless $self->$type->creator;
     }
-
-    my $req = HTTP::Request::Common::POST(
-        $req_uri,
-        Content_Type => 'application/json',
-        Accept       => 'application/json',
-        Content      => JSON->new->ascii->encode(
-            [ $self->profile->as_struct, $self->secret->as_struct ]
-        ),
-    );
 
     my $res = $self->_ua->post($req_uri, {
       headers => { Accept => 'application/json',
