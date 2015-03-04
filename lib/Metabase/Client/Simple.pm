@@ -5,7 +5,7 @@ use warnings;
 package Metabase::Client::Simple;
 # ABSTRACT: a client that submits to Metabase servers
 
-our $VERSION = '0.011_03';
+our $VERSION = '0.011_04';
 
 use HTTP::Status 5.817 qw/:constants/;
 use JSON 2 ();
@@ -64,8 +64,13 @@ sub _ua {
     my ($self) = @_;
     if ( !$self->{_ua} ) {
         $self->{_ua} = HTTP::Tiny->new(
-            agent      => __PACKAGE__ . "/" . __PACKAGE__->VERSION . " ",
+            agent => __PACKAGE__ . "/" . __PACKAGE__->VERSION . " ",
+            default_headers => {
+                'Accept'       => 'application/json',
+                'Content-Type' => 'application/json',
+            },
             keep_alive => 1,
+            verify_SSL => 1,
         );
     }
     return $self->{_ua};
@@ -97,8 +102,6 @@ sub submit_fact {
     $req_uri = 'https://' . $basic .  'metabase.cpantesters.org/api/v1/submit/CPAN-Testers-Report';
     warn "URI $req_uri";
     my $res = $self->_ua->post($req_uri, {
-      headers => { Accept => 'application/json',
-                   'Content-Type' => 'application/json', },
       content => JSON->new->ascii->encode( $fact->as_struct),
     });
 
@@ -110,8 +113,6 @@ warn "Authentication failed!!";
         $self->register; # dies on failure
         # should now be registered so try again
     $res = $self->_ua->post($req_uri, {
-      headers => { Accept => 'application/json',
-                   'Content-Type' => 'application/json', },
       content => JSON->new->ascii->encode( $fact->as_struct),
     });
     }
@@ -169,9 +170,6 @@ sub register {
     }
 
     my $res = $self->_ua->post($req_uri, {
-      headers => { Accept => 'application/json',
-                   'Content-Type' =>  'application/json'
-                 },
       content => JSON->new->ascii->encode(
             [ $self->profile->as_struct, $self->secret->as_struct ]
         ),
